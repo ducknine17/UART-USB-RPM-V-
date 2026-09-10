@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fardriver UART Monitor</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ND72680 UART</p>
+        <h1>Fardriver Live Monitor</h1>
+      </div>
+      <div class="status-pill" id="serialStatus">
+        <span class="status-dot idle"></span>
+        <span>대기 중</span>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="control-panel" aria-label="컨트롤러 연결">
+        <div class="control-group">
+          <label for="baudSelect">통신 속도</label>
+          <select id="baudSelect">
+            <option value="19200" selected>19200</option>
+            <option value="9600">9600</option>
+            <option value="38400">38400</option>
+            <option value="57600">57600</option>
+            <option value="115200">115200</option>
+          </select>
+        </div>
+
+        <button class="primary" id="connectBtn" type="button">컨트롤러 연결</button>
+        <button id="disconnectBtn" type="button" disabled>연결 해제</button>
+        <button id="recordBtn" type="button" aria-pressed="true">기록 중</button>
+        <button id="clearBtn" type="button">비우기</button>
+        <button id="sampleBtn" type="button">샘플</button>
+
+        <div class="export-group">
+          <button id="exportRawBtn" type="button">원본 Excel</button>
+          <button id="exportParsedBtn" type="button">RPM/전압 Excel</button>
+        </div>
+      </section>
+
+      <p class="notice" id="supportNotice"></p>
+
+      <section class="metric-grid" aria-label="실시간 값">
+        <article class="metric">
+          <span>전압</span>
+          <strong id="voltageValue">--</strong>
+          <small>Addr E8 / 0.1V</small>
+        </article>
+        <article class="metric">
+          <span>RPM 후보</span>
+          <strong id="rpmValue">--</strong>
+          <small>Addr E2 / MeasureSpeed</small>
+        </article>
+        <article class="metric">
+          <span>라인 전류</span>
+          <strong id="currentValue">--</strong>
+          <small>Addr E8 / 0.25A</small>
+        </article>
+        <article class="metric">
+          <span>MOS 온도</span>
+          <strong id="mosTempValue">--</strong>
+          <small>Addr D6</small>
+        </article>
+        <article class="metric">
+          <span>모터 온도</span>
+          <strong id="motorTempValue">--</strong>
+          <small>Addr F4</small>
+        </article>
+      </section>
+
+      <section class="inspector">
+        <article class="graph-panel">
+          <div class="section-title">
+            <h2>전압 그래프</h2>
+            <span id="voltageRange">--</span>
+          </div>
+          <canvas id="voltageChart" width="720" height="260" aria-label="전압 그래프"></canvas>
+        </article>
+
+        <article class="graph-panel">
+          <div class="section-title">
+            <h2>RPM 후보 그래프</h2>
+            <span id="rpmRange">--</span>
+          </div>
+          <canvas id="rpmChart" width="720" height="260" aria-label="RPM 후보 그래프"></canvas>
+        </article>
+      </section>
+
+      <section class="data-area">
+        <article class="panel">
+          <div class="section-title">
+            <h2>파서 상태</h2>
+            <span id="parserStatus">RAW 대기</span>
+          </div>
+          <dl class="stats">
+            <div>
+              <dt>수신 바이트</dt>
+              <dd id="byteCount">0</dd>
+            </div>
+            <div>
+              <dt>16바이트 프레임</dt>
+              <dd id="packetCount">0</dd>
+            </div>
+            <div>
+              <dt>최근 주소</dt>
+              <dd id="frameAddress">--</dd>
+            </div>
+            <div>
+              <dt>CRC</dt>
+              <dd id="crcState">--</dd>
+            </div>
+            <div>
+              <dt>최근 수신</dt>
+              <dd id="lastPacket">--</dd>
+            </div>
+            <div>
+              <dt>버퍼</dt>
+              <dd id="bufferSize">0 B</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <div class="section-title">
+            <h2>해석 데이터</h2>
+            <span>최근 8개</span>
+          </div>
+          <div class="table-wrap compact">
+            <table>
+              <thead>
+                <tr>
+                  <th>시간</th>
+                  <th>전압</th>
+                  <th>RPM 후보</th>
+                  <th>전류</th>
+                  <th>주소</th>
+                </tr>
+              </thead>
+              <tbody id="parsedTableBody">
+                <tr><td colspan="5" class="empty">아직 해석된 값이 없습니다.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel raw-panel">
+        <div class="section-title">
+          <h2>원본 UART 로그</h2>
+          <span>최근 80개</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>시간</th>
+                <th>종류</th>
+                <th>주소</th>
+                <th>길이</th>
+                <th>HEX</th>
+              </tr>
+            </thead>
+            <tbody id="rawTableBody">
+              <tr><td colspan="5" class="empty">컨트롤러를 연결하면 원본 바이트가 여기에 쌓입니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
