@@ -36,6 +36,9 @@ const state = {
     motorTemp: null,
   },
   pendingRender: false,
+  diagnostics: newDiagnostics(),
+  readTask: null,
+  connecting: false,
 };
 
 const ui = {};
@@ -46,12 +49,20 @@ document.addEventListener("DOMContentLoaded", () => {
   updateSupportNotice();
   updateConnectionUi("idle", "대기 중");
   renderAll();
+  updateSourceUi();
+  setInterval(renderDiagnostics, 500);
   window.addEventListener("resize", () => renderCharts());
 });
 
 function bindUi() {
   [
     "baudSelect",
+    "baudLabel",
+    "sourceSelect",
+    "usbCard", "usbDiagnosis", "usbDetail", "usbStageLabel",
+    "uartCard", "uartDiagnosis", "uartDetail",
+    "frameCard", "frameDiagnosis", "frameDetail",
+    "nextCheck", "deviceStats", "diagnosticMode", "exportDiagnosticBtn",
     "connectBtn",
     "disconnectBtn",
     "recordBtn",
@@ -92,6 +103,13 @@ function bindEvents() {
   ui.sampleBtn.addEventListener("click", injectSampleData);
   ui.exportRawBtn.addEventListener("click", exportRawWorkbook);
   ui.exportParsedBtn.addEventListener("click", exportParsedWorkbook);
+  ui.exportDiagnosticBtn.addEventListener("click", exportDiagnosticReport);
+  ui.sourceSelect.addEventListener("change", () => {
+    state.diagnostics = newDiagnostics();
+    clearData();
+    updateSourceUi();
+  });
+  ui.baudSelect.addEventListener("change", renderDiagnostics);
 }
 
 function updateSupportNotice() {
@@ -113,6 +131,13 @@ function updateSupportNotice() {
 }
 
 async function connectSerial() {
+  if (state.connecting || state.readActive) return;
+  state.connecting = true;
+  ui.connectBtn.disabled = true;
+  ui.sourceSelect.disabled = true;
+  ui.sampleBtn.disabled = true;
+  state.diagnostics = newDiagnostics();
+  clearData();
   try {
     if (!("serial" in navigator)) {
       throw new Error("Web Serial API 미지원");
@@ -130,36 +155,56 @@ async function connectSerial() {
     });
 
     state.readActive = true;
+    state.diagnostics.connectedAt = Date.now();
     ui.connectBtn.disabled = true;
     ui.disconnectBtn.disabled = false;
     ui.baudSelect.disabled = true;
-    updateConnectionUi("live", `연결됨 ${baudRate}`);
-    readLoop();
+    updateConnectionUi("live", "COM 포트 열림");
+    state.readTask = readLoop(state.port);
   } catch (error) {
+    state.port = null;
+    state.diagnostics.error = toUserError(error);
     updateConnectionUi("error", "연결 실패");
     ui.supportNotice.textContent = toUserError(error);
+    ui.connectBtn.disabled = !("serial" in navigator);
+    ui.sourceSelect.disabled = false;
+    ui.sampleBtn.disabled = false;
+  } finally {
+    state.connecting = false;
+    updateSourceUi();
   }
 }
 
-async function readLoop() {
-  while (state.port && state.port.readable && state.readActive) {
-    state.reader = state.port.readable.getReader();
-
-    try {
-      while (state.readActive) {
-        const { value, done } = await state.reader.read();
-        if (done) break;
-        if (value) handleIncomingBytes(value);
+async function readLoop(port) {
+  try {
+    state.reader = port.readable.getReader();
+    while (state.readActive) {
+      const { value, done } = await state.reader.read();
+      if (done) {
+        if (state.readActive) state.diagnostics.error = "장치의 데이터 스트림이 종료되었습니다.";
+        break;
       }
-    } catch (error) {
-      if (state.readActive) {
-        updateConnectionUi("error", "읽기 오류");
-        ui.supportNotice.textContent = toUserError(error);
-      }
-    } finally {
+      if (value) handleSerialBytes(value);
+    }
+  } catch (error) {
+    if (state.readActive) {
+      state.diagnostics.error = toUserError(error);
+      ui.supportNotice.textContent = toUserError(error);
+    }
+  } finally {
+    if (state.reader) {
       state.reader.releaseLock();
       state.reader = null;
     }
+    state.readActive = false;
+    try { await port.close(); } catch { /* The device may already be unplugged. */ }
+    state.port = null;
+    ui.connectBtn.disabled = !("serial" in navigator);
+    ui.disconnectBtn.disabled = true;
+    ui.sourceSelect.disabled = false;
+    ui.sampleBtn.disabled = false;
+    updateConnectionUi(state.diagnostics.error ? "error" : "idle", state.diagnostics.error ? "연결 / 읽기 오류" : "연결 해제됨");
+    updateSourceUi();
   }
 }
 
@@ -170,18 +215,11 @@ async function disconnectSerial() {
     if (state.reader) {
       await state.reader.cancel();
     }
-    if (state.port) {
-      await state.port.close();
-    }
+    if (state.readTask) await state.readTask;
   } catch (error) {
     ui.supportNotice.textContent = toUserError(error);
   } finally {
-    state.reader = null;
-    state.port = null;
-    ui.connectBtn.disabled = !("serial" in navigator);
-    ui.disconnectBtn.disabled = true;
-    ui.baudSelect.disabled = false;
-    updateConnectionUi("idle", "대기 중");
+    state.readTask = null;
   }
 }
 
@@ -198,6 +236,14 @@ function clearData() {
   state.graphRows = [];
   state.byteCount = 0;
   state.frameCount = 0;
+  state.diagnostics.sample = false;
+  state.diagnostics.validFrames = 0;
+  state.diagnostics.crcErrors = 0;
+  state.diagnostics.lastValidAt = 0;
+  ui.frameAddress.textContent = "--";
+  ui.crcState.textContent = "--";
+  ui.parserStatus.textContent = "RAW 대기";
+  ui.lastPacket.textContent = "--";
   state.latest = {
     voltage: null,
     rpmCandidate: null,
@@ -211,6 +257,7 @@ function clearData() {
 function handleIncomingBytes(value) {
   const bytes = Array.from(value);
   const timestamp = new Date();
+  if (bytes.length) state.diagnostics.lastUartAt = timestamp.getTime();
 
   state.byteCount += bytes.length;
   state.rxBuffer.push(...bytes);
@@ -234,10 +281,7 @@ function handleIncomingBytes(value) {
 }
 
 function extractFrames() {
-  let guard = 0;
-
-  while (state.rxBuffer.length >= 16 && guard < 500) {
-    guard += 1;
+  while (state.rxBuffer.length >= 16) {
     const startIndex = state.rxBuffer.indexOf(0xaa);
 
     if (startIndex === -1) {
@@ -273,13 +317,25 @@ function extractFrames() {
 
     if (state.rxBuffer.length < 16) break;
 
-    const frame = state.rxBuffer.splice(0, 16);
+    const frame = state.rxBuffer.slice(0, 16);
+    if (!hasValidCrc(frame)) {
+      state.diagnostics.crcErrors += 1;
+      ui.crcState.textContent = "CHECK";
+      ui.parserStatus.textContent = "CRC 불일치 · 다음 시작점 탐색";
+      // Shift by one, so a dropped/corrupt byte cannot hide the next valid frame.
+      state.rxBuffer.shift();
+      continue;
+    }
+    state.rxBuffer.splice(0, 16);
     processFrame(frame);
   }
 }
 
 function processFrame(frame) {
+  if (!hasValidCrc(frame)) return;
   const timestamp = new Date();
+  state.diagnostics.validFrames += 1;
+  state.diagnostics.lastValidAt = timestamp.getTime();
   const frameNo = ++state.frameCount;
   const id = frame[1] & 0x3f;
   const flags = frame[1] >> 6;
@@ -429,6 +485,7 @@ function scheduleRender() {
 }
 
 function renderAll() {
+  renderDiagnostics();
   renderMetrics();
   renderStats();
   renderRawTable();
@@ -639,6 +696,9 @@ function sessionSheet() {
     rows: [
       { key: "generatedAt", value: new Date().toISOString() },
       { key: "baudRate", value: ui.baudSelect.value },
+      { key: "source", value: ui.sourceSelect.value },
+      { key: "sample", value: state.diagnostics.sample },
+      { key: "controllerUartBaud", value: ui.sourceSelect.value === "teensy" ? state.diagnostics.status?.baud ?? "unknown" : ui.baudSelect.value },
       { key: "frames", value: state.frameCount },
       { key: "bytes", value: state.byteCount },
       { key: "parser", value: "Fardriver 16-byte status frame draft" },
@@ -714,6 +774,10 @@ function buildRow(values, forceText) {
 }
 
 function injectSampleData() {
+  if (state.readActive || state.connecting) return;
+  state.diagnostics = newDiagnostics();
+  clearData();
+  state.diagnostics.sample = true;
   const now = Date.now();
   const voltage = 720 + Math.round(Math.random() * 24);
   const rpm = 900 + Math.round(Math.random() * 2600);
@@ -722,8 +786,8 @@ function injectSampleData() {
   const e8 = makeSampleFrame(1, [voltage & 0xff, voltage >> 8, 0, 0, current & 0xff, current >> 8, 0, 0, 0, 0, 0, 0]);
   const e2 = makeSampleFrame(0, [0, 0, 0, 0, 0, 0, rpm & 0xff, rpm >> 8, 0, 0, 0, 0]);
 
-  setTimeout(() => handleIncomingBytes(new Uint8Array(e8)), 0);
-  setTimeout(() => handleIncomingBytes(new Uint8Array(e2)), 40);
+  handleIncomingBytes(new Uint8Array(e8));
+  handleIncomingBytes(new Uint8Array(e2));
   ui.lastPacket.textContent = formatTime(new Date(now));
 }
 

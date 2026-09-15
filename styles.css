@@ -152,7 +152,7 @@ h2 {
 }
 
 .control-panel {
-  grid-template-columns: minmax(160px, 220px) repeat(5, minmax(116px, auto)) minmax(260px, auto);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -184,6 +184,24 @@ h2 {
   color: var(--accent-2);
   font-size: 0.94rem;
 }
+
+.diagnostic-panel { margin-bottom: 18px; }
+.diagnostic-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.diagnostic-card { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #14191d; }
+.diagnostic-card > span { color: var(--muted); font-size: .82rem; }
+.diagnostic-card strong { display: block; margin: 10px 0; font-size: 1.15rem; }
+.diagnostic-card p { margin: 0; color: var(--muted); line-height: 1.6; }
+.diagnostic-card[data-level="ok"] { border-color: #287c68; }
+.diagnostic-card[data-level="ok"] strong { color: var(--ok); }
+.diagnostic-card[data-level="warn"] strong { color: var(--accent-2); }
+.diagnostic-card[data-level="error"] strong { color: var(--danger); }
+.next-check { background: #20262b; padding: 14px; border-radius: 6px; line-height: 1.7; }
+.diagnostic-note, .setup-guide { color: var(--muted); font-size: .9rem; line-height: 1.7; }
+.diagnostic-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.diagnostic-actions a { color: var(--accent); }
+.setup-guide { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.setup-guide summary { cursor: pointer; color: var(--text); }
+.setup-guide li { margin-bottom: 8px; }
 
 .metric-grid {
   grid-template-columns: repeat(5, minmax(150px, 1fr));
@@ -378,6 +396,7 @@ tr:last-child td {
   }
 
   .control-panel,
+  .diagnostic-grid,
   .metric-grid,
   .stats {
     grid-template-columns: 1fr;

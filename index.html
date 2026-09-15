@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fardriver UART Monitor</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="diagnostics.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -22,7 +23,14 @@
     <main class="shell">
       <section class="control-panel" aria-label="컨트롤러 연결">
         <div class="control-group">
-          <label for="baudSelect">통신 속도</label>
+          <label for="sourceSelect">연결 장치</label>
+          <select id="sourceSelect">
+            <option value="teensy" selected>Teensy 4.1 진단</option>
+            <option value="adapter">USB-UART 직접 연결</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label id="baudLabel" for="baudSelect">USB 포트 속도</label>
           <select id="baudSelect">
             <option value="19200" selected>19200</option>
             <option value="9600">9600</option>
@@ -32,11 +40,11 @@
           </select>
         </div>
 
-        <button class="primary" id="connectBtn" type="button">컨트롤러 연결</button>
+        <button class="primary" id="connectBtn" type="button">장치 연결</button>
         <button id="disconnectBtn" type="button" disabled>연결 해제</button>
         <button id="recordBtn" type="button" aria-pressed="true">기록 중</button>
         <button id="clearBtn" type="button">비우기</button>
-        <button id="sampleBtn" type="button">샘플</button>
+        <button id="sampleBtn" type="button">샘플 (실측 아님)</button>
 
         <div class="export-group">
           <button id="exportRawBtn" type="button">원본 Excel</button>
@@ -45,6 +53,49 @@
       </section>
 
       <p class="notice" id="supportNotice"></p>
+
+      <section class="panel diagnostic-panel" aria-label="수신 진단">
+        <div class="section-title">
+          <h2>어디까지 연결됐나요?</h2>
+          <span id="diagnosticMode">Teensy 수신 진단</span>
+        </div>
+        <div class="diagnostic-grid">
+          <article id="usbCard" class="diagnostic-card" data-level="idle">
+            <span id="usbStageLabel">1 · 틴시 → 컴퓨터</span>
+            <strong id="usbDiagnosis">연결 대기</strong>
+            <p id="usbDetail">장치를 연결하면 확인합니다.</p>
+          </article>
+          <article id="uartCard" class="diagnostic-card" data-level="idle">
+            <span>2 · 컨트롤러 → 수신 장치</span>
+            <strong id="uartDiagnosis">수신 대기</strong>
+            <p id="uartDetail">바이트 수신 여부를 확인합니다.</p>
+          </article>
+          <article id="frameCard" class="diagnostic-card" data-level="idle">
+            <span>3 · 데이터 형식 확인</span>
+            <strong id="frameDiagnosis">검사 대기</strong>
+            <p id="frameDetail">16바이트 프레임과 CRC를 검사합니다.</p>
+          </article>
+        </div>
+        <p id="nextCheck" class="next-check" role="status">Teensy 진단 프로그램을 업로드한 뒤 연결하세요.</p>
+        <p id="deviceStats" class="diagnostic-note"></p>
+        <p class="diagnostic-note">수신이 없다는 결과만으로 단선·전압 문제·시작 요청 필요 여부를 구분할 수는 없습니다. 이 화면은 관찰된 상태와 다음 확인 항목을 안내합니다.</p>
+        <div class="diagnostic-actions">
+          <a href="teensy_uart_web_diagnostic/teensy_uart_web_diagnostic.ino" download>틴시 진단 코드 다운로드</a>
+          <button id="exportDiagnosticBtn" type="button">진단 결과 저장</button>
+        </div>
+        <details class="setup-guide">
+          <summary>오후 실험 준비 · 연결과 업로드 순서</summary>
+          <ol>
+            <li>Teensy 4.1을 USB로 연결하고, 진단 코드를 Arduino IDE에서 엽니다. 같은 이름의 스케치 폴더를 만들겠다는 안내가 나오면 확인합니다. 한글 경로 때문에 컴파일 오류가 나면 스케치와 빌드 경로를 영문 폴더로 바꿔 확인하세요.</li>
+            <li>보드: Teensy 4.1 / USB Type: Serial / 포트: 해당 Teensy를 선택해 업로드합니다. 업로드는 기존 틴시 프로그램을 대체하므로 필요한 기존 코드는 보관하세요.</li>
+            <li>시리얼 모니터를 닫고, 여기서 ‘Teensy 4.1 진단’을 선택해 장치를 연결합니다. 컨트롤러가 없어도 1초마다 틴시 상태가 도착합니다.</li>
+            <li>컨트롤러와 틴시 전원을 끄고, 확인된 컨트롤러 출력 → 틴시 0번(RX1), 통신 GND → GND를 연결합니다. 틴시 1번(TX1)과 컨트롤러 전원선은 연결하지 않습니다.</li>
+            <li>틴시는 USB, 컨트롤러는 기존 전원으로 켭니다. 컨트롤러 출력은 Teensy의 3.3V 입력과 호환되어야 합니다. 사양서의 TTL 표기만으로 3.3V라고 확정할 수는 없습니다.</li>
+            <li>약 5초 뒤 세 진단 칸을 확인하고 ‘진단 결과 저장’을 누릅니다. 시리얼 모니터와 사이트는 같은 포트를 동시에 사용하지 마세요.</li>
+          </ol>
+          <p>틴시 UART는 코드의 UART_BAUD 값(기본 19200, 8N1)을 사용합니다. 사이트에서 USB 속도를 바꿔도 틴시 UART 속도는 바뀌지 않습니다. 예전 시리얼 모니터 전용 스케치 대신 새 진단 스케치를 업로드하세요.</p>
+        </details>
+      </section>
 
       <section class="metric-grid" aria-label="실시간 값">
         <article class="metric">
