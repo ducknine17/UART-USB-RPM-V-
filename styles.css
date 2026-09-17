@@ -30,8 +30,36 @@ body {
 }
 
 button,
-select {
+select,
+.page-link {
   font: inherit;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-link {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(57, 198, 161, 0.42);
+  border-radius: 8px;
+  background: #1b463e;
+  color: var(--text);
+  padding: 0 16px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.page-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: #205248;
 }
 
 button {
@@ -388,6 +416,12 @@ tr:last-child td {
 @media (max-width: 680px) {
   .topbar {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .header-actions {
+    width: 100%;
+    align-items: stretch;
     flex-direction: column;
   }
 

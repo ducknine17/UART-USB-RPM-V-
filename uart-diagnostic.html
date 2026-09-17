@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FarDriver UART 정밀 진단</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="uart-diagnostic.css" />
+    <script src="uart-diagnostic-logic.js" defer></script>
+    <script src="uart-diagnostic.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ND72680 UART LAB</p>
+        <h1>통신 정밀 진단</h1>
+      </div>
+      <div class="header-actions">
+        <a class="page-link secondary-link" href="index.html">실시간 모니터로 돌아가기</a>
+        <div class="status-pill" id="connectionStatus">
+          <span class="status-dot idle"></span>
+          <span>연결 대기</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell diagnostic-shell">
+      <section class="lab-warning" aria-label="안전 안내">
+        <strong>먼저 전용 Teensy 스케치를 업로드하세요.</strong>
+        <span>시작 시에는 수신만 하며, Open과 KeepAlive는 아래 버튼을 누를 때만 전송합니다. 공식 케이블과 Teensy TX를 동시에 연결하지 마세요.</span>
+        <a href="teensy_fardriver_uart_diagnostic/teensy_fardriver_uart_diagnostic.ino" download>전용 스케치 다운로드</a>
+      </section>
+
+      <section class="control-panel lab-controls" aria-label="진단 장치 연결">
+        <div class="control-group">
+          <label for="usbBaud">Teensy USB 포트 속도</label>
+          <select id="usbBaud">
+            <option value="115200" selected>115200</option>
+          </select>
+        </div>
+        <button class="primary" id="connectBtn" type="button">Teensy 연결</button>
+        <button id="disconnectBtn" type="button" disabled>연결 해제</button>
+        <button id="clearBtn" type="button">결과 비우기</button>
+        <button id="exportBtn" type="button">진단 보고서 저장</button>
+      </section>
+
+      <p class="notice" id="supportNotice">연결 후 ① 신호 측정 → ② 전체 스캔 → ③ 필요할 때만 송신 시험 순서로 진행하세요.</p>
+
+      <section class="panel step-panel" aria-labelledby="passiveTitle">
+        <div class="step-heading">
+          <span class="step-number">1</span>
+          <div>
+            <h2 id="passiveTitle">같은 배선으로 수동 신호 측정</h2>
+            <p>UART 해석을 잠시 끄고 RX 핀의 유휴 상태와 펄스 간격을 2초간 측정합니다. 컨트롤러에는 아무것도 보내지 않습니다.</p>
+          </div>
+          <button id="signalBtn" type="button" disabled>신호 측정</button>
+        </div>
+        <div class="reading-grid">
+          <div><span>유휴 상태</span><strong id="idleLevel">--</strong></div>
+          <div><span>신호 전환</span><strong id="edgeCount">--</strong></div>
+          <div><span>최소 간격</span><strong id="minPulse">--</strong></div>
+          <div><span>평균 간격</span><strong id="avgPulse">--</strong></div>
+        </div>
+      </section>
+
+      <section class="panel step-panel" aria-labelledby="scanTitle">
+        <div class="step-heading">
+          <span class="step-number">2</span>
+          <div>
+            <h2 id="scanTitle">보레이트·극성 전체 스캔</h2>
+            <p>8개 속도를 일반/반전 모드로 검사합니다. 약 32초가 걸리며 스캔 중에는 송신하지 않습니다.</p>
+          </div>
+          <button class="primary" id="scanBtn" type="button" disabled>전체 스캔 시작</button>
+        </div>
+        <div class="scan-progress" aria-live="polite">
+          <div><span id="scanProgressBar"></span></div>
+          <p id="scanProgressText">아직 실행하지 않았습니다.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="scan-table">
+            <thead>
+              <tr>
+                <th>속도</th>
+                <th>극성</th>
+                <th>바이트</th>
+                <th>종류</th>
+                <th>FF</th>
+                <th>AA</th>
+                <th>정상</th>
+                <th>CRC 거절</th>
+                <th>판정</th>
+              </tr>
+            </thead>
+            <tbody id="scanTableBody">
+              <tr><td colspan="9" class="empty">스캔 결과가 여기에 표시됩니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel step-panel" aria-labelledby="activeTitle">
+        <div class="step-heading active-heading">
+          <span class="step-number caution">3</span>
+          <div>
+            <h2 id="activeTitle">수동 송신 시험</h2>
+            <p>수신 조건을 먼저 확인한 뒤 실행하세요. 파라미터 쓰기·리셋·펌웨어 명령은 포함하지 않습니다.</p>
+          </div>
+        </div>
+        <div class="active-controls">
+          <button id="openBtn" type="button" disabled>Open 1회 전송</button>
+          <button id="keepAliveBtn" type="button" disabled>KeepAlive 1회 전송</button>
+          <button id="autoKeepAliveBtn" type="button" disabled>자동 KeepAlive 시작</button>
+          <button id="stopKeepAliveBtn" type="button" disabled>자동 전송 중지</button>
+        </div>
+        <p class="packet-note"><code>Open AA 13 EC 07 01 F1 A2 5D</code><code>KeepAlive AA 13 EC 07 5F 5F 6E 91</code></p>
+      </section>
+
+      <section class="diagnosis-layout">
+        <article class="panel result-panel">
+          <div class="section-title">
+            <h2>현재 종합 판정</h2>
+            <span id="resultLevel">대기</span>
+          </div>
+          <strong id="resultTitle">진단을 시작하세요.</strong>
+          <p id="resultDetail">먼저 Teensy를 연결하고 수동 신호 측정을 실행하세요.</p>
+          <div class="recommendation" id="recommendation">다음 조치가 여기에 표시됩니다.</div>
+        </article>
+
+        <article class="panel">
+          <div class="section-title">
+            <h2>현재 수신 상태</h2>
+            <span id="currentMode">--</span>
+          </div>
+          <dl class="stats live-stats">
+            <div><dt>UART 조건</dt><dd id="currentUart">--</dd></div>
+            <div><dt>최근 RX</dt><dd id="rxRecent">0 B/s</dd></div>
+            <div><dt>FF 비율</dt><dd id="ffRatio">--</dd></div>
+            <div><dt>0xAA</dt><dd id="aaCount">0</dd></div>
+            <div><dt>정상 프레임</dt><dd id="validFrames">0</dd></div>
+            <div><dt>CRC 거절</dt><dd id="crcRejects">0</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="panel raw-panel">
+        <div class="section-title">
+          <h2>진단 이벤트 로그</h2>
+          <span>최근 200개</span>
+        </div>
+        <div class="event-log" id="eventLog" role="log" aria-live="polite">
+          <p class="empty">아직 기록된 이벤트가 없습니다.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

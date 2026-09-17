@@ -1,0 +1,271 @@
+.diagnostic-shell {
+  max-width: 1240px;
+}
+
+.secondary-link {
+  border-color: var(--line);
+  background: #20262b;
+}
+
+.lab-warning {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(242, 184, 75, 0.42);
+  border-radius: 8px;
+  background: rgba(83, 63, 24, 0.32);
+  padding: 14px 16px;
+  color: #f7e3b5;
+}
+
+.lab-warning span {
+  color: #cdbf9d;
+  line-height: 1.55;
+}
+
+.lab-warning a {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.lab-controls {
+  grid-template-columns: 1.2fr repeat(4, minmax(130px, 1fr));
+}
+
+.step-panel {
+  margin-bottom: 14px;
+}
+
+.step-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.step-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.step-number {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(57, 198, 161, 0.16);
+  color: var(--accent);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.step-number.caution {
+  background: rgba(242, 184, 75, 0.16);
+  color: var(--accent-2);
+}
+
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reading-grid div {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #2a3339;
+  border-radius: 7px;
+  background: #14191d;
+  padding: 13px;
+}
+
+.reading-grid span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.reading-grid strong {
+  font-size: 1.2rem;
+}
+
+.scan-progress {
+  margin-bottom: 14px;
+}
+
+.scan-progress > div {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #111619;
+}
+
+.scan-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+.scan-progress p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.scan-table {
+  min-width: 900px;
+}
+
+.scan-table tr.best td {
+  background: rgba(57, 198, 161, 0.08);
+  color: #dffaf3;
+}
+
+.scan-table tr.suspect td {
+  background: rgba(242, 184, 75, 0.06);
+}
+
+.active-heading {
+  grid-template-columns: auto 1fr;
+}
+
+.active-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.packet-note {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0 0;
+  color: var(--muted);
+}
+
+.packet-note code {
+  border: 1px solid #2a3339;
+  border-radius: 6px;
+  background: #111619;
+  padding: 7px 9px;
+}
+
+.diagnosis-layout {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.result-panel > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1.3rem;
+}
+
+.result-panel > p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.result-panel[data-level="ok"] {
+  border-color: #287c68;
+}
+
+.result-panel[data-level="warn"] {
+  border-color: #84672f;
+}
+
+.result-panel[data-level="error"] {
+  border-color: #8a3b3b;
+}
+
+.recommendation {
+  border-left: 3px solid var(--accent);
+  background: #14191d;
+  padding: 12px 14px;
+  color: #dce5e7;
+  line-height: 1.65;
+}
+
+.live-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.event-log {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #2a3339;
+  border-radius: 7px;
+  background: #0d1114;
+  padding: 8px 12px;
+}
+
+.event-log p {
+  margin: 0;
+  border-bottom: 1px solid #20282e;
+  padding: 8px 2px;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.event-log p:last-child {
+  border-bottom: 0;
+}
+
+.event-log time {
+  color: var(--muted);
+}
+
+.event-log .event-warn {
+  color: var(--accent-2);
+}
+
+.event-log .event-ok {
+  color: var(--accent);
+}
+
+.event-log .event-error {
+  color: var(--danger);
+}
+
+@media (max-width: 960px) {
+  .lab-controls,
+  .active-controls,
+  .reading-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .diagnosis-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-warning {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .lab-controls,
+  .active-controls,
+  .reading-grid,
+  .live-stats,
+  .step-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .step-number {
+    width: 32px;
+    height: 32px;
+  }
+}
