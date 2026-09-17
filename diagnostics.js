@@ -5,6 +5,7 @@ function newDiagnostics() {
     connectedAt: 0, lastUsbAt: 0, lastStatusAt: 0, lastUartAt: 0, lastValidAt: 0,
     validFrames: 0, crcErrors: 0, protocolErrors: 0, streamGaps: 0,
     status: null, nextOffset: null, textBuffer: "", decoder: new TextDecoder(),
+    monitorStartRequested: false,
     error: "", sample: false,
   };
 }
@@ -46,9 +47,13 @@ function handleSerialBytes(value) {
 }
 
 function acceptDiagnosticMessage(message) {
-  if (!message || message.v !== 1) return false;
+  if (!message || (message.v !== 1 && message.v !== 2)) return false;
   const d = state.diagnostics;
   const uint = (n) => Number.isInteger(n) && n >= 0 && n <= 0xffffffff;
+  if (message.v === 2 && message.type === "hello") {
+    requestTeensyMonitorStart();
+    return true;
+  }
   if (message.type === "status") {
     if (![message.uptimeMs, message.rxTotal, message.rxRecent, message.usbDropped].every(uint) ||
         !Number.isInteger(message.baud) || message.baud <= 0 || message.baud > 10000000) return false;
@@ -64,9 +69,10 @@ function acceptDiagnosticMessage(message) {
     d.status = message;
     d.lastStatusAt = Date.now();
     if (message.rxRecent > 0) d.lastUartAt = Date.now();
+    if (message.v === 2) requestTeensyMonitorStart();
     return true;
   }
-  if (message.type === "data") {
+  if (message.type === "data" || (message.v === 2 && message.type === "raw")) {
     if (!uint(message.offset) || typeof message.hex !== "string" ||
         !/^(?:[0-9a-fA-F]{2}){1,64}$/.test(message.hex)) return false;
     const bytes = Uint8Array.from(message.hex.match(/../g), (hex) => parseInt(hex, 16));
@@ -78,7 +84,25 @@ function acceptDiagnosticMessage(message) {
     handleIncomingBytes(bytes);
     return true;
   }
+  if (message.v === 2 && ["tx", "event", "auto_keepalive", "signal_start", "signal", "scan_start", "scan", "scan_done"].includes(message.type)) {
+    return true;
+  }
   return false;
+}
+
+async function requestTeensyMonitorStart() {
+  const d = state.diagnostics;
+  if (d.monitorStartRequested || !state.port?.writable || !state.readActive) return;
+  d.monitorStartRequested = true;
+  const writer = state.port.writable.getWriter();
+  try {
+    await writer.write(new TextEncoder().encode("monitor_on\n"));
+  } catch (error) {
+    d.monitorStartRequested = false;
+    d.error = `Teensy 모니터 시작 명령 실패: ${error?.message || String(error)}`;
+  } finally {
+    writer.releaseLock();
+  }
 }
 
 // Pure diagnosis: observations only. Never claim that a particular wire is broken.

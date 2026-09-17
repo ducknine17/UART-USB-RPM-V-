@@ -1,18 +1,20 @@
-// Teensy 4.0 / 4.1 FarDriver UART precision diagnostics, protocol v2.
-// USB Serial <-> diagnostic web page. Serial1 <-> controller UART.
-// RX1 pin 0 receives controller output. TX1 pin 1 is high impedance except while
+// Teensy 4.1 FarDriver left UART monitor + web diagnostics, protocol v2.
+// Based on teensy_fardriver_left_open_keepalive.ino.
+// USB Serial <-> monitor/diagnostic web page. Serial7 <-> NER-15966 <-> controller.
+// D28 receives controller output. D29 is high impedance except while
 // the user explicitly sends Open or KeepAlive from the diagnostic page.
 // Never connect the controller power pin to Teensy. Verify that signal voltage
 // is 0-3.3V before connecting because Teensy 4.x pins are not 5V tolerant.
 
 #include <Arduino.h>
 
-#if !defined(ARDUINO_TEENSY40) && !defined(ARDUINO_TEENSY41)
-#error "Select Teensy 4.0 or Teensy 4.1. Serial1 RX is pin 0 and TX is pin 1."
+#if !defined(ARDUINO_TEENSY41)
+#error "Select Teensy 4.1. Serial7 RX is D28 and TX is D29."
 #endif
 
-constexpr uint8_t RX_PIN = 0;
-constexpr uint8_t TX_PIN = 1;
+HardwareSerialIMXRT &farDriver = Serial7;
+constexpr uint8_t RX_PIN = 28;
+constexpr uint8_t TX_PIN = 29;
 constexpr uint32_t USB_BAUD = 115200;
 constexpr uint32_t DEFAULT_UART_BAUD = 19200;
 constexpr uint32_t SIGNAL_DURATION_MS = 2000;
@@ -109,12 +111,14 @@ bool validCrc(const uint8_t *data) {
 }
 
 void configureUart(uint32_t baud, bool inverted, bool driveTx = false) {
-  Serial1.end();
+  farDriver.end();
   pinMode(RX_PIN, INPUT);
   pinMode(TX_PIN, INPUT);
   delayMicroseconds(100);
   const uint16_t format = inverted ? SERIAL_8N1_RXINV_TXINV : SERIAL_8N1;
-  Serial1.begin(baud, format);
+  farDriver.setRX(RX_PIN);
+  farDriver.setTX(TX_PIN);
+  farDriver.begin(baud, format);
   if (!driveTx) pinMode(TX_PIN, INPUT);
   currentBaud = baud;
   currentInverted = inverted;
@@ -139,7 +143,7 @@ void flushRaw() {
     hex[i * 2 + 1] = digits[rawChunk[i] & 0x0F];
   }
   hex[rawLength * 2] = '\0';
-  Serial.printf("{\"v\":2,\"type\":\"raw\",\"offset\":%lu,\"hex\":\"%s\"}\n",
+  Serial.printf("{\"v\":2,\"type\":\"data\",\"offset\":%lu,\"hex\":\"%s\"}\n",
                 static_cast<unsigned long>(rawOffset), hex);
   rawLength = 0;
 }
@@ -204,8 +208,8 @@ void feedParser(uint8_t value) {
 }
 
 void readController() {
-  for (size_t i = 0; i < 512 && Serial1.available() > 0; ++i) {
-    const int value = Serial1.read();
+  for (size_t i = 0; i < 512 && farDriver.available() > 0; ++i) {
+    const int value = farDriver.read();
     if (value >= 0) feedParser(static_cast<uint8_t>(value));
   }
   if (rawLength && millis() - rawStartedAt >= 50) flushRaw();
@@ -216,10 +220,10 @@ void sendStatus() {
   const uint32_t now = millis();
   if (now - lastStatus < 1000) return;
   Serial.printf(
-    "{\"v\":2,\"type\":\"status\",\"mode\":\"listen\",\"baud\":%lu,\"inverted\":%s,"
-    "\"rxTotal\":%lu,\"rxRecent\":%lu,\"ffRecent\":%lu,\"bytes\":%lu,\"ff\":%lu,"
+    "{\"v\":2,\"type\":\"status\",\"uptimeMs\":%lu,\"mode\":\"listen\",\"baud\":%lu,\"inverted\":%s,"
+    "\"rxTotal\":%lu,\"rxRecent\":%lu,\"usbDropped\":0,\"ffRecent\":%lu,\"bytes\":%lu,\"ff\":%lu,"
     "\"zero\":%lu,\"aa\":%lu,\"unique\":%u,\"valid\":%lu,\"crcRejects\":%lu,\"autoKeepAlive\":%s}\n",
-    static_cast<unsigned long>(currentBaud), currentInverted ? "true" : "false",
+    static_cast<unsigned long>(now), static_cast<unsigned long>(currentBaud), currentInverted ? "true" : "false",
     static_cast<unsigned long>(rxLifetime), static_cast<unsigned long>(rxRecent),
     static_cast<unsigned long>(ffRecent), static_cast<unsigned long>(metrics.bytes),
     static_cast<unsigned long>(metrics.ff), static_cast<unsigned long>(metrics.zero),
@@ -246,7 +250,7 @@ void onSignalEdge() {
 void startSignalMeasurement() {
   if (runMode != RunMode::Listening) return;
   autoKeepAlive = false;
-  Serial1.end();
+  farDriver.end();
   pinMode(TX_PIN, INPUT);
   pinMode(RX_PIN, INPUT);
   signalEdges = 0;
@@ -357,8 +361,8 @@ void transmitPacket(const char *name, const uint8_t *packet, size_t length) {
   }
   flushRaw();
   configureUart(currentBaud, currentInverted, true);
-  const size_t accepted = Serial1.write(packet, length);
-  Serial1.flush();
+  const size_t accepted = farDriver.write(packet, length);
+  farDriver.flush();
   pinMode(TX_PIN, INPUT);
   if (Serial) {
     char hex[33];
@@ -391,6 +395,13 @@ void handleCommand(const char *command) {
   } else if (!strcmp(command, "auto_off")) {
     autoKeepAlive = false;
     if (Serial) Serial.println("{\"v\":2,\"type\":\"auto_keepalive\",\"enabled\":false}");
+  } else if (!strcmp(command, "monitor_on")) {
+    if (runMode == RunMode::Listening) {
+      transmitPacket("Open", OPEN_PACKET, sizeof(OPEN_PACKET));
+      autoKeepAlive = true;
+      lastKeepAlive = millis();
+      if (Serial) Serial.println("{\"v\":2,\"type\":\"auto_keepalive\",\"enabled\":true}");
+    }
   } else if (!strcmp(command, "clear")) {
     resetMetrics();
     emitEvent("진단 카운터를 초기화했습니다.", "ok");

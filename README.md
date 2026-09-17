@@ -26,7 +26,7 @@ http://localhost:5173
 http://localhost:5173/uart-diagnostic.html
 ```
 
-이 페이지는 기존 실시간 모니터와 분리된 실험 화면입니다. `teensy_fardriver_uart_diagnostic/teensy_fardriver_uart_diagnostic.ino`를 Teensy 4.1에 업로드한 뒤 사용합니다.
+이 페이지는 기존 실시간 모니터와 분리된 실험 화면입니다. `teensy_fardriver_left_open_keepalive.ino`의 Serial7 D28/D29 및 NER-15966 배선을 기준으로 만든 통합 코드 `teensy_fardriver_uart_diagnostic/teensy_fardriver_uart_diagnostic.ino`를 Teensy 4.1에 업로드한 뒤 사용합니다. 원본 스케치는 변경하지 않습니다.
 
 권장 순서는 다음과 같습니다.
 
@@ -36,7 +36,7 @@ http://localhost:5173/uart-diagnostic.html
 4. 수신 조건을 확인한 뒤 필요한 경우에만 `Open 1회 전송` 또는 `KeepAlive 1회 전송`을 누릅니다.
 5. `진단 보고서 저장`으로 신호·스캔·송수신 이벤트를 JSON으로 저장합니다.
 
-전용 스케치는 시작 시 Teensy TX1을 입력 상태로 두며, 사용자가 송신 버튼을 누를 때만 후보 패킷을 보냅니다. 파라미터 쓰기, 컨트롤러 리셋, 펌웨어 관련 명령은 포함하지 않습니다. 공식 USB 통신 케이블과 Teensy TX를 동시에 연결하지 마세요. Teensy 4.1 입력은 5V tolerant가 아니므로 실제 신호 전압이 0~3.3V 범위인지 별도 측정해야 합니다.
+통합 스케치는 시작 시 D29 TX를 입력 상태로 두며, 정밀 진단 페이지에서는 사용자가 송신 버튼을 누를 때만 후보 패킷을 보냅니다. 메인 실시간 모니터에 연결하면 웹사이트가 `monitor_on`을 요청해 Open 1회와 자동 KeepAlive를 시작하므로 공식 PC 앱을 먼저 열 필요가 없습니다. 파라미터 쓰기, 컨트롤러 리셋, 펌웨어 관련 명령은 포함하지 않습니다. 공식 USB 통신 케이블과 Teensy TX를 동시에 연결하지 마세요. Teensy 4.1 입력은 5V tolerant가 아니므로 NER-15966의 HV/LV 전원과 실제 신호 전압을 기존 배선대로 확인해야 합니다.
 
 ## 사용 흐름
 

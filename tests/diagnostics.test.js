@@ -20,7 +20,7 @@ function harness() {
   const context = vm.createContext({
     document: { addEventListener() {}, getElementById: node },
     window: { isSecureContext: true, addEventListener() {} }, navigator: { serial: {} },
-    TextDecoder, Uint8Array, Date: ClockDate, setTimeout: (f) => f(), setInterval() {},
+    TextDecoder, TextEncoder, Uint8Array, Date: ClockDate, setTimeout: (f) => f(), setInterval() {},
     requestAnimationFrame() {}, console,
   });
   for (const file of ["diagnostics.js", "app.js"]) {
@@ -102,10 +102,26 @@ test("old text sketch is rejected without interpreting its text as UART bytes", 
 
 test("malformed messages do not fake a heartbeat or UART data", () => {
   const h = harness();
-  h.send(status({ rxRecent: -1 }) + data("NOTHEX") + status({ v: 2 }) + "null\n");
+  h.send(status({ rxRecent: -1 }) + data("NOTHEX") + status({ v: 3 }) + "null\n");
   assert.equal(h.run("state.diagnostics.lastStatusAt"), 0);
   assert.equal(h.run("state.diagnostics.protocolErrors"), 4);
   assert.equal(h.run("state.byteCount"), 0);
+});
+
+test("v2 integrated firmware starts legacy monitor mode and remains data compatible", async () => {
+  const h = harness(), writes = [];
+  h.context.testPort = { writable: { getWriter: () => ({
+    write: async (value) => { writes.push(new TextDecoder().decode(value)); },
+    releaseLock() {},
+  }) } };
+  h.run("state.port = testPort");
+  h.send(JSON.stringify({ v: 2, type: "hello", board: "integrated" }) + "\n");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(writes, ["monitor_on\n"]);
+  h.send(status({ v: 2, mode: "listen", inverted: false }));
+  h.send(JSON.stringify({ v: 2, type: "data", offset: 0, hex: frame(h) }) + "\n");
+  assert.equal(h.run("state.latest.voltage"), 72);
+  assert.equal(h.run("state.diagnostics.protocolErrors"), 0);
 });
 
 test("unframed text is bounded and the next valid line recovers", () => {

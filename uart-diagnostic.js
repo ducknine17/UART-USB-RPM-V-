@@ -148,6 +148,7 @@ function handleLine(line) {
       state.status = message;
       break;
     case "raw":
+    case "data":
       logEvent(`RX ${message.offset ?? "?"} · ${message.hex || ""}`);
       break;
     case "signal_start":
